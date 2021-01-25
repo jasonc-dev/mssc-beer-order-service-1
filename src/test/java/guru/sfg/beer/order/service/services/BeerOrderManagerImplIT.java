@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jenspiegsa.wiremockextension.WireMockExtension;
 import com.github.tomakehurst.wiremock.WireMockServer;
-import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import guru.sfg.beer.order.service.domain.BeerOrder;
 import guru.sfg.beer.order.service.domain.BeerOrderLine;
 import guru.sfg.beer.order.service.domain.BeerOrderStatusEnum;
@@ -13,7 +12,6 @@ import guru.sfg.beer.order.service.repositories.BeerOrderRepository;
 import guru.sfg.beer.order.service.repositories.CustomerRepository;
 import guru.sfg.beer.order.service.services.beer.BeerServiceImpl;
 import guru.sfg.brewery.model.BeerDto;
-import org.junit.ClassRule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,7 +73,7 @@ public class BeerOrderManagerImplIT {
     }
 
     @Test
-    void testNewToAllocate() throws JsonProcessingException, InterruptedException {
+    void testNewToAllocated() throws JsonProcessingException {
         BeerDto beerDto = BeerDto.builder().id(beerId).upc("12345").build();
 
         wireMockServer.stubFor(get(BeerServiceImpl.BEER_UPC_PATH_V1 + "12345")
@@ -87,17 +85,22 @@ public class BeerOrderManagerImplIT {
 
         await().untilAsserted(() -> {
             BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
-            //todo - ALLOCATED STATUS
-            assertEquals(BeerOrderStatusEnum.ALLOCATION_PENDING, foundOrder.getOrderStatus());
+            assertEquals(BeerOrderStatusEnum.ALLOCATED, foundOrder.getOrderStatus());
         });
-//        System.out.println("sleeping.....");
-//        Thread.sleep(4000);
-//        System.out.println("awake.....");
+
+        await().untilAsserted(() -> {
+            BeerOrder foundOrder = beerOrderRepository.findById(beerOrder.getId()).get();
+            BeerOrderLine line = foundOrder.getBeerOrderLines().iterator().next();
+            assertEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
 
         BeerOrder savedBeerOrder2 = beerOrderRepository.findById(savedBeerOrder.getId()).get();
 
-        assertNotNull(savedBeerOrder);
+        assertNotNull(savedBeerOrder2);
         assertEquals(BeerOrderStatusEnum.ALLOCATED, savedBeerOrder2.getOrderStatus());
+        savedBeerOrder2.getBeerOrderLines().forEach(line -> {
+            assertEquals(line.getOrderQuantity(), line.getQuantityAllocated());
+        });
     }
 
     public BeerOrder createBeerOrder() {
